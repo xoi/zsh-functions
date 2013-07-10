@@ -1,0 +1,13 @@
+#compdef mixerctl
+
+local -a mixerctlvars
+
+mixerctlvars=( ${$(mixerctl -a)%%\=*} )
+
+_arguments -s -A "-*" \
+    '(-w *)-a[list all]' \
+    '-n[show only variable values]' \
+    '(-w)-v[show the possible values of enumeration and set valued variables]' \
+    '-d[give an alternative mixer device]:mixer device:_files' \
+    '(-a)-w[write variable]' \
+    '(-w -a)*:mixerctl variable:_multi_parts ${words[(r)-w]:+-S=} -i . mixerctlvars'

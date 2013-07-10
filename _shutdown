@@ -1,0 +1,11 @@
+#compdef shutdown
+
+_arguments \
+    '-h[halt system]' \
+    '-p[halt system and turn off power]' \
+    '-r[reboot system]' \
+    '-k[kick everybody off]' \
+    '-o[execute halt(8) or reboot(8)]' \
+    '-n[pass -n option to halt(8) or reboot(8)]' \
+    ':shutdown time:(now)' \
+    '*:warning message:'

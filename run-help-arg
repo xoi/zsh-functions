@@ -1,0 +1,17 @@
+emulate -L zsh
+
+if (( NUMERIC )); then
+  local bufwords
+  # This splits the line into words as the shell understands them.
+  bufwords=(${(z)BUFFER})
+
+  zle .push-line -N
+  BUFFER="$WIDGET $bufwords[NUMERIC]"
+  zle .accept-line
+
+  return
+fi
+
+zle .run-help
+
+return 0

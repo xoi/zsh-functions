@@ -1,0 +1,6 @@
+#compdef mgp
+
+local expl
+
+_description files expl 'MagicPoint file'
+_files "$expl[@]" -g '*.(#i)mgp(-.)'

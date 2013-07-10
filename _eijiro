@@ -1,0 +1,15 @@
+#compdef eijiro pdic
+
+_word() {
+  local expl
+
+  _wanted words expl 'word' _words
+}
+
+_words() {
+  local dict=/usr/share/dict/words
+
+  compadd "$@" - $(grep "^$words[$CURRENT]" $dict | head -100)
+}
+
+_word "$@"

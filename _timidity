@@ -1,0 +1,6 @@
+#compdef timidity
+
+local expl
+
+_description files expl 'MIDI file'
+_files "$expl[@]" -g '*.(#i)mid(-.)'

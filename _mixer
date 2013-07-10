@@ -1,0 +1,11 @@
+#compdef mixer
+
+typeset -A _dev
+
+_dev=(`mixer -s 2>&-`)
+
+_arguments \
+    '-s[display current mixer values]' \
+    '-f:mixer device:_files' \
+    ':mixer devices:(${(k)_dev})' \
+    ':volume level ({+-}<lvol>\:{+-}<rvol>):'

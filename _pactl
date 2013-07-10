@@ -1,0 +1,110 @@
+#compdef pactl
+
+# for pactl 0.9.15
+
+_pactl_list () {
+  ruby -e '
+    def Hash.new_depthless
+      Hash.new {|hash, key| hash[key] = Hash.new_depthless }
+    end
+
+    class String
+      def property(name)
+	scan(/^\t\t#{Regexp.escape(name)} = "(.*)"$/)[0][0]
+      end
+    end
+
+    list = Hash.new_depthless
+
+    `pactl list`.split("\n\n").each {|sec|
+      sec = sec.split(/\n\t(?=\S)/)
+      sec.shift =~ /^(.+) #(\d+)$/
+      list[$1][$2] = sec.map {|line| line.split(/:\s/, 2) }.inject({}) {|result, item| result.update({ item[0] => item[1] }) }
+    }
+    print eval(ARGV[0]).map {|match| match.join("\t") }.join("\n")
+  ' $@
+}
+
+_wanted_program () {
+  local tag=$1; shift
+  local program=$1; shift
+  local descr=$1; shift
+  local out ids list expl match desc ret=1
+
+  out=( "${(f)$(_call_program $tag $program 2>/dev/null)}" )
+  ids=()
+  list=()
+  for match ( $out ) {
+    match=( ${(ps:\t:)match} )
+    ids+=$match[1]
+    list+=${(pj:  :)match}
+  }
+
+  if zstyle -T ":completion:${curcontext}:$tag" verbose; then
+    desc=(-ld list)
+  else
+    desc=()
+  fi
+
+  _wanted $tag expl $descr compadd "$@" "$desc[@]" -a ids && ret=0
+
+  return ret
+}
+
+_sink_inputs () {
+  _pactl_list 'list["Sink Input"].map {|key, value| [key, value["Properties"].property("application.name"), list["Sink"][value["Sink"]]["Name"], list["Sink"][value["Sink"]]["Description"]] }'
+}
+
+_sink_input_ids () {
+  _wanted_program playback-streams _sink_inputs 'sink input ID'
+}
+
+_sinks () {
+  _pactl_list 'list["Sink"].map {|key, value| [value["Name"], value["Description"]] }'
+}
+
+_sink_names () {
+  _wanted_program sinks _sinks sink
+}
+
+_move-sink-input () {
+  local ret=1
+
+  _arguments \
+    '1: :_sink_input_ids' \
+    '2: :_sink_names' && ret=0
+
+  return ret
+}
+
+_operations () {
+  local expl ret=1
+
+  if (( CURRENT == 1 )); then
+    _wanted operations expl 'operation' compadd "$@" - \
+      stat list exit \
+      upload-sample play-sample remove-sample \
+      move-sink-input move-source-output \
+      load-module unload-module \
+      suspend-sink suspend-source \
+      set-card-profile
+  else
+    case $words[1] in
+    move-sink-input)
+      _move-sink-input && ret=0
+      ;;
+    esac
+    return ret
+  fi
+}
+
+local curcontext="$curcontext" ret=1
+
+_arguments \
+  '(--server -s)'{--server=,-s+}'[The name of the server to connect to]:server' \
+  '(--client-name -n)'{--client-name=,-n+}'[How to call this client on the server]:client name' \
+  '(--help -h)'{--help,-h}'[Show help]' \
+  '--version[Show version]' \
+  '*::operation:_operations' && ret=0
+
+return ret

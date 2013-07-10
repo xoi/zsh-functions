@@ -1,0 +1,62 @@
+emulate -L zsh
+setopt extendedglob
+
+autoload match-words-by-style
+
+local curcontext=":zle:$WIDGET" word done
+local -a matched_words
+integer count=${NUMERIC:-1}
+
+if (( count < 0 )); then
+    (( NUMERIC = -count ))
+    zle ${WIDGET##backward-}
+    return
+fi
+
+while (( count-- )); do
+
+    match-words-by-style
+
+    local spacepat wordpat1
+    local match mbegin mend
+    local MATCH MBEGIN MEND
+    local wc
+    # See if there is a character class.
+    if zstyle -s $curcontext word-class wc; then
+	# Treat as a character class: do minimal quoting.
+	wc=${wc//(#m)[\'\"\`\$\(\)\^]/\\$MATCH}
+    else
+	# See if there is a local version of $WORDCHARS.
+	zstyle -s $curcontext word-chars wc ||
+	wc=$WORDCHARS
+	if [[ $wc = (#b)(?*)-(*) ]]; then
+	    # We need to bring any `-' to the front to avoid confusing
+	    # character classes... we get away with `]' since in zsh
+	    # this isn't a pattern character if it's quoted.
+	    wc=-$match[1]$match[2]
+	fi
+	wc="${(q)wc}"
+    fi
+    # Normal: similar, but add alphanumerics and eight bit characters.
+    wordpat1="[${wc}[:alnum:]$'\x80-\xff']#"
+    spacepat="[^${wc}[:alnum:]$'\x80-\xff']#"
+
+    match=()
+    eval 'matched_words[1]+=${matched_words[2]%%(#b)('${wordpat1}')('${spacepat}')}'
+    word="$match[1]$match[2]$matched_words[3]"
+
+    if [[ -n $word ]]; then
+	if [[ -n $done || $LASTWIDGET = *kill* ]]; then
+	    CUTBUFFER="$word$CUTBUFFER"
+	else
+	    killring=("$CUTBUFFER" "${(@)killring[1,-2]}")
+	    CUTBUFFER=$word
+	fi
+	LBUFFER=$matched_words[1]
+    else
+	return 1
+    fi
+    done=1
+done
+
+return 0

@@ -1,0 +1,137 @@
+#autoload
+
+# migemo補完の completer.
+
+# NOTE:
+# 現状はファイル名補完のみ動作する為、
+# 以下のように通常の completer と併用して使用する.
+#
+#   zstyle ":completion:::::" completer _complete _migemo_complete
+#
+# matcher specifications は無効.
+
+# EXAMPLE:
+# 補完前の入力                      -> 補完候補パターン
+# [input1]:[input2][cursor][input3] -> [regex1].*[regex2].*[regex3]
+
+# TODO:
+# zstyle化
+# :: を : として扱う
+# 全角英字を含めて case-insensitive にする
+
+[[ _matcher_num -gt 1 ]] && return 1
+
+local dounfunction
+local ret=1
+local _matcher='m:?='	# これがないと compfiles の時点で補完候補が絞られ過ぎる
+local -A migemo_result
+local -A matching_result
+local -A matching_result_pat_id
+
+# TODO: 脱coproc
+if [[ -z $jobtexts[(r)_migemo_program] ]]; then
+  # $jobtexts をこの関数名で識別する
+  _migemo_program() {
+    # `coproc 関数' とすると、exec なしでは別の coprocess 起動時に残ってしまう
+    exec sh -c 'nkf -Weu |migemo -t egrep /usr/share/migemo/migemo-dict |nkf -Ewu'
+  }
+  unsetopt monitor	# coproc の出力を抑止(NOTE: 他に coprocess があると黙って終わってしまう)
+  coproc _migemo_program
+fi
+
+_call_migemo() {
+  if (( ! $+migemo_result[$1] )); then
+    print -rp - "$1"
+    read -rp
+    migemo_result[$1]=$REPLY
+  else
+    REPLY=$migemo_result[$1]
+  fi
+}
+
+{
+  if (( ! $+functions[compadd] )); then
+    # migemize した compadd 関数を builtin に代わって一時的に定義
+    # 既に関数が定義されている場合は上書きしない
+    dounfunction=1
+    compadd() {
+      local words
+      local matches
+      local pat
+      local opts_array opts_assoc
+      local opt_p opt_s opt_D
+      local D_array D_array_tmp
+      #local orig_param
+
+      #orig_param=( "$@" )
+
+      zparseopts -D -E -a opts_array -A opts_assoc P+: S+: p+:=opt_p s+:=opt_s i+: I+: a k d+: l o J+: V+: 1 2 X+: x+: q r+: R+: f e W+: F+: Q M+: n U O+: A+: D+:=opt_D C E
+
+      if (( ${+opts_assoc[-k]} || ${+opts_assoc[-d]} || ${+opts_assoc[-U]} || ${+opts_assoc[-O]} || ${+opts_assoc[-A]} )); then
+	# 未対応のオプションがあれば中断する(他にも未確認のオプションはあるが)。現状は _path_files(ファイル名補完)のみ対応
+	# _complete と併用することを想定している
+	return 1
+	# 未対応のオプションがあればオリジナルの compadd を呼ぶコード
+	# この場合は _matcher についての考慮が必要
+	#builtin compadd "$orig_param[@]"
+	#return
+      fi
+
+      [[ $1 == (-|--) ]] && shift
+      opts_array+=( "$opt_p[@]" "$opt_s[@]" )
+
+      # 引数で渡された変数名と local変数の名前が重複するとまずい気がする
+      (( $#opt_D )) && eval "D_array=( \"\$$opt_D[2][@]\" )"
+      if (( ${+opts_assoc[-a]} )); then
+	eval "words=( \$$1 )"
+      else
+	words=( "$@" )
+      fi
+
+      if [[ $PREFIX != $opt_p[2]* || $SUFFIX != *$opt_s[2] ]]; then
+	# f/b -> foo/bar の補完でここにくる
+	# 未対応のケースの為、中断する
+	return 1
+      fi
+      # 入力パターン中に記号がある場合のことは考えてない
+      pat=( "${(s.:.)PREFIX#$opt_p[2]}" "${(s.:.)SUFFIX%$opt_s[2]}" )
+      local i
+      for (( i=1; i<=${#pat}; i++ )); do
+	_call_migemo "$pat[i]"
+	pat[i]="($REPLY)"
+      done
+      pat="${(j:*:)pat}"	# egrep pattern を globbing pattern として扱う
+
+      (( $+matching_result_pat_id[$pat] )) || (( matching_result_pat_id[\$pat] = $#matching_result_pat_id ))
+      local pat_id=$matching_result_pat_id[$pat]
+      local result_key
+
+      matches=()
+      D_array_tmp=()
+      for (( i=1; i<=${#words}; i++ )); do
+	result_key=$pat_id:$words[i]
+	if (( ! $+matching_result[$result_key] )); then
+	  [[ $words[i] == $~pat ]]
+	  (( matching_result[\$result_key] = ! $? ))
+	fi
+	if (( matching_result[\$result_key] )); then
+	  matches+=$words[i]
+	  (( $#opt_D )) && D_array_tmp+=$D_array[i]
+	fi
+      done
+
+      if (( $#opt_D )); then
+	# "$opt_D[2]" と local変数の名前が重複するとまずい気がする
+	set -A "$opt_D[2]" "$D_array_tmp[@]"
+      else
+	builtin compadd "$opts_array[@]" -U -a matches
+      fi
+    }
+  fi
+
+  _complete && ret=0
+} always {
+  [[ -n $dounfunction ]] && (( $+functions[compadd] )) && unfunction compadd
+}
+
+return ret
