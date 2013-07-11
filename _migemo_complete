@@ -106,24 +106,23 @@ _call_migemo() {
       local pat_id=$matching_result_pat_id[$pat]
       local result_key
 
-      matches=()
-      D_array_tmp=()
-      for (( i=1; i<=${#words}; i++ )); do
-	result_key=$pat_id:$words[i]
-	if (( ! $+matching_result[$result_key] )); then
-	  [[ $words[i] == $~pat ]]
-	  (( matching_result[\$result_key] = ! $? ))
-	fi
-	if (( matching_result[\$result_key] )); then
-	  matches+=$words[i]
-	  (( $#opt_D )) && D_array_tmp+=$D_array[i]
-	fi
-      done
-
       if (( $#opt_D )); then
+	D_array_tmp=()
+	for (( i=1; i<=${#words}; i++ )); do
+	  result_key=$pat_id:$words[i]
+	  if (( ! $+matching_result[$result_key] )); then
+	    [[ $words[i] == $~pat ]]
+	    (( matching_result[\$result_key] = ! $? ))
+	  fi
+	  if (( matching_result[\$result_key] )); then
+	    D_array_tmp+=$D_array[i]
+	  fi
+	done
+
 	# "$opt_D[2]" と local変数の名前が重複するとまずい気がする
 	set -A "$opt_D[2]" "$D_array_tmp[@]"
       else
+	matches=(${(M)words:#$~pat})
 	builtin compadd "$opts_array[@]" -U -a matches
       fi
     }
