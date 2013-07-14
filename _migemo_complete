@@ -25,8 +25,8 @@ local dounfunction
 local ret=1
 local _matcher='m:?='	# これがないと compfiles の時点で補完候補が絞られ過ぎる
 local -A migemo_result
-local -A matching_result
-local -A matching_result_pat_id
+local -A all_matched
+local -A pat_ids
 
 # TODO: 脱coproc
 if [[ -z $jobtexts[(r)_migemo_program] ]]; then
@@ -55,12 +55,10 @@ _call_migemo() {
     # 既に関数が定義されている場合は上書きしない
     dounfunction=1
     compadd() {
-      local words
-      local matches
+      local quoted unquoted
       local pat
       local opts_array opts_assoc
       local opt_p opt_s opt_D
-      local D_array D_array_tmp
       #local orig_param
 
       #orig_param=( "$@" )
@@ -80,13 +78,22 @@ _call_migemo() {
       [[ $1 == (-|--) ]] && shift
       opts_array+=( "$opt_p[@]" "$opt_s[@]" )
 
-      # 引数で渡された変数名と local変数の名前が重複するとまずい気がする
-      (( $#opt_D )) && eval "D_array=( \"\$$opt_D[2][@]\" )"
-      if (( ${+opts_assoc[-a]} )); then
-	eval "words=( \$$1 )"
+      local words_var_name set_words_code
+      if (( ${+opts_assoc[-Q]} )); then
+	words_var_name=quoted
+	set_words_code='unquoted=( ${(Q)quoted} )'
       else
-	words=( "$@" )
+	words_var_name=unquoted
+	set_words_code='quoted=( ${(q)unquoted} )'
       fi
+
+      # 引数で渡された変数名と local変数の名前が重複するとまずい気がする
+      if (( ${+opts_assoc[-a]} )); then
+	set -A $words_var_name ${(P)1}
+      else
+	set -A $words_var_name $@
+      fi
+      eval $set_words_code
 
       if [[ $PREFIX != $opt_p[2]* || $SUFFIX != *$opt_s[2] ]]; then
 	# f/b -> foo/bar の補完でここにくる
@@ -102,27 +109,36 @@ _call_migemo() {
       done
       pat="${(j:*:)pat}"	# egrep pattern を globbing pattern として扱う
 
-      (( $+matching_result_pat_id[$pat] )) || (( matching_result_pat_id[\$pat] = $#matching_result_pat_id ))
-      local pat_id=$matching_result_pat_id[$pat]
+      (( $+pat_ids[$pat] )) || (( pat_ids[\$pat] = $#pat_ids ))
+      local pat_id=$pat_ids[$pat]
       local result_key
 
+      local -a matches
       if (( $#opt_D )); then
-	D_array_tmp=()
-	for (( i=1; i<=${#words}; i++ )); do
-	  result_key=$pat_id:$words[i]
-	  if (( ! $+matching_result[$result_key] )); then
-	    [[ $words[i] == $~pat ]]
-	    (( matching_result[\$result_key] = ! $? ))
-	  fi
-	  if (( matching_result[\$result_key] )); then
+	local -a D_array D_array_tmp
+	# "$opt_D[2]" と local変数の名前が重複するとまずい気がする
+	D_array=( ${(P)opt_D[2]} )
+
+	local n=${#quoted}
+	for (( i=1; i<=n; i++ )); do
+	  if [[ $quoted[i] == $~pat ]]; then
+	    matches+=$unquoted[i]
 	    D_array_tmp+=$D_array[i]
 	  fi
 	done
+	# _path_files が compadd -D を呼んだ後に、その結果を補完候補として compadd を -D なしで呼ぶので、
+	# 結果をパターンとそれに全要素が match する配列の組み合わせとして覚えておく
+	result_key=$pat_id:$matches${(j.:.)matches}
+	(( all_matched[\$result_key] = 1 ))
 
-	# "$opt_D[2]" と local変数の名前が重複するとまずい気がする
 	set -A "$opt_D[2]" "$D_array_tmp[@]"
       else
-	matches=(${(M)words:#$~pat})
+	result_key=$pat_id:$unquoted${(j.:.)unquoted}
+	if (( $+all_matched[$result_key] )); then
+	  matches=( $quoted )
+	else
+	  matches=( ${(M)quoted:#$~pat} )
+	fi
 	builtin compadd "$opts_array[@]" -U -a matches
       fi
     }
