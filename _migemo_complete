@@ -120,11 +120,9 @@ _call_migemo() {
 	D_array=( ${(P)opt_D[2]} )
 
 	local n=${#quoted}
-	for (( i=1; i<=n; i++ )); do
-	  if [[ $quoted[i] == $~pat ]]; then
-	    matches+=$unquoted[i]
-	    D_array_tmp+=$D_array[i]
-	  fi
+	for (( i=0; i=$quoted[(ib:i+1:)$pat], i<=n; )); do
+	  matches+=$unquoted[i]
+	  D_array_tmp+=$D_array[i]
 	done
 	# _path_files が compadd -D を呼んだ後に、その結果を補完候補として compadd を -D なしで呼ぶので、
 	# 結果をパターンとそれに全要素が match する配列の組み合わせとして覚えておく
