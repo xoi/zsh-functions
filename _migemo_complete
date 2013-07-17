@@ -102,7 +102,7 @@ _call_migemo() {
       fi
       # 入力パターン中に記号がある場合のことは考えてない
       pat=( "${(s.:.)PREFIX#$opt_p[2]}" "${(s.:.)SUFFIX%$opt_s[2]}" )
-      local i
+      integer i
       for (( i=1; i<=${#pat}; i++ )); do
 	_call_migemo "$pat[i]"
 	pat[i]="($REPLY)"
@@ -119,7 +119,7 @@ _call_migemo() {
 	# "$opt_D[2]" と local変数の名前が重複するとまずい気がする
 	D_array=( ${(P)opt_D[2]} )
 
-	local n=${#quoted}
+	integer n=${#quoted}
 	for (( i=0; i=$quoted[(ib:i+1:)$pat], i<=n; )); do
 	  matches+=$unquoted[i]
 	  D_array_tmp+=$D_array[i]
@@ -131,7 +131,9 @@ _call_migemo() {
 
 	set -A "$opt_D[2]" "$D_array_tmp[@]"
       else
-	result_key=$pat_id:$unquoted${(j.:.)unquoted}
+	if (( $#all_matched )); then
+	  result_key=$pat_id:$unquoted${(j.:.)unquoted}
+	fi
 	if (( $+all_matched[$result_key] )); then
 	  matches=( $quoted )
 	else
