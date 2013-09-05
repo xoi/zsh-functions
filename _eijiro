@@ -1,4 +1,4 @@
-#compdef eijiro pdic
+#compdef eijiro
 
 _word() {
   local expl
