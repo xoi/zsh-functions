@@ -6,12 +6,12 @@ if (( NUMERIC )); then
   bufwords=(${(z)BUFFER})
 
   zle .push-line -N
-  BUFFER="$WIDGET $bufwords[NUMERIC]"
+  BUFFER="run-help $bufwords[NUMERIC]"
   zle .accept-line
 
   return
 fi
 
-zle .run-help
+zle run-help
 
 return 0
